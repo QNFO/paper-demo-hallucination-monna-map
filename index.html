@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>When does a flattened answer land on nothing? Monna-map hallucination demo</title>
+<meta name="description" content="Toy interactive demo: a knowledge tree flattened to a number line loses detail, and sometimes the answer lands on a branch with no knowledge.">
+<style>
+:root{--bg:#f7f8fb;--fg:#161a24;--mut:#4a5163;--card:#fff;--bd:#c9cfdd;--acc:#2447c4;--ok:#17703a;--bad:#b3261e;--warn:#8a5a00;--okbg:#e3f4e9;--badbg:#fbe6e4;--warnbg:#fdf0d5}
+@media(prefers-color-scheme:dark){:root{--bg:#10131c;--fg:#eef0f6;--mut:#b4bbcd;--card:#1a1f2d;--bd:#3a4258;--acc:#8fa8ff;--ok:#6fd592;--bad:#ff8f86;--warn:#f2c35c;--okbg:#14301f;--badbg:#3a1b19;--warnbg:#3a2d0e}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,sans-serif}
+main{max-width:760px;margin:0 auto;padding:16px}h1{font-size:1.45rem;line-height:1.25;margin:.2em 0}h2{font-size:1.1rem;margin:1.2em 0 .3em}
+a{color:var(--acc)}.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin:12px 0}
+.toy{display:inline-block;border:1px solid var(--warn);color:var(--warn);border-radius:99px;padding:2px 10px;font-size:.875rem}
+label{display:block;font-weight:600;margin:10px 0 4px}input[type=range]{width:100%;min-height:44px;accent-color:var(--acc)}
+button{min-height:44px;min-width:44px;padding:8px 14px;font:inherit;border:1px solid var(--acc);background:transparent;color:var(--acc);border-radius:10px;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+svg{width:100%;height:auto;display:block;color:var(--fg)}text{fill:var(--fg);font-family:system-ui,sans-serif}
+.leaf{cursor:pointer}.leaf:focus-visible rect{stroke:var(--acc);stroke-width:3}
+#verdict{border-radius:10px;padding:12px;font-weight:600;border:2px solid}
+.v-exact{background:var(--okbg);color:var(--ok);border-color:var(--ok)}.v-wrong{background:var(--warnbg);color:var(--warn);border-color:var(--warn)}.v-hall{background:var(--badbg);color:var(--bad);border-color:var(--bad)}
+table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid var(--bd);padding:6px;text-align:left;font-size:.95rem}
+.small{font-size:.875rem;color:var(--mut)}.key span{display:inline-block;margin-right:14px}
+</style></head><body><main>
+<p><span class="toy">Toy model</span> <span class="small">Companion to a QNFO paper (TRL 1-2, not peer reviewed, AI-written)</span></p>
+<h1>How a flattened answer can land on a branch with no knowledge</h1>
+<p><strong>In 30 seconds:</strong> imagine an AI stores what it knows as a branching tree, from broad topics at the top to single facts at the bottom. To speak, it must squeeze that tree onto one line of numbers and keep only the first few digits. Facts that share those digits become one blurry spot. If that spot sits on a branch where the AI knows nothing, the answer is a hallucination. Pick a fact below, then reduce the digits kept.</p>
+
+<div class="card">
+<label for="q">Question: which fact? (fact number <output id="qn"></output> of 0 to 31)</label>
+<input id="q" type="range" min="0" max="31" value="22">
+<label for="k">Digits kept, k: <output id="kn"></output> of 5</label>
+<input id="k" type="range" min="1" max="5" value="2">
+<div class="key small" aria-hidden="true"><span>&#9632; filled = the AI has this knowledge</span><span>&#9633; hollow = none</span><span>&#9679; question</span><span>&#9733; answer given</span></div>
+<svg id="tree" viewBox="0 0 640 330" role="img" aria-label="Binary knowledge tree with 32 leaves"></svg>
+<div id="verdict" role="status" aria-live="polite"></div>
+<p><button id="shuf" type="button">Reshuffle what the AI knows</button> <button id="tryk" type="button">Sweep k from 5 down to 1</button></p>
+<table><tbody>
+<tr><th scope="row">Question as digits (branch taken at each level)</th><td id="dg"></td></tr>
+<tr><th scope="row">Monna map &phi;(x), full / kept</th><td id="ph"></td></tr>
+<tr><th scope="row">Depth-retention &rho; = k/D, loss 1-&rho;</th><td id="rh"></td></tr>
+<tr><th scope="row">Hallucination rate H = &alpha;(1-&rho;)</th><td>proportional to the loss; the paper leaves &alpha; model-specific, so this demo shows only the loss</td></tr>
+</tbody></table>
+</div>
+
+<h2>What the paper defines (and this demo uses)</h2>
+<p>Knowledge is a p-ary tree of depth D (here p=2, D=5). A leaf's path is x = &Sigma; a<sub>i</sub> p<sup>-i</sup>. The Monna map reads that expansion as a real number &phi;(x) = &Sigma; a<sub>i</sub> p<sup>-i</sup> in [0,1]. Keeping only the top k digits maps every leaf under the same branch to one value (many-to-one).</p>
+<h2>Numbers the paper states</h2>
+<table><tbody>
+<tr><td>D=5, k=2: survival fraction</td><td id="n1"></td></tr>
+<tr><td>L=20, k=10: distinguishable fraction</td><td id="n2"></td></tr>
+<tr><td>Geometric depth, q=0.7 (assumed), k=10, L=20: unrecoverable floor</td><td id="n3"></td></tr>
+<tr><td>D=5, k from 2 to 4: loss 0.6 to 0.2</td><td id="n4"></td></tr>
+</tbody></table>
+<p class="small">These are computed live by the same code that the tests check against the paper.</p>
+
+<div class="card"><h2 style="margin-top:0">What this does not show</h2>
+<ul><li>It does not show that real language models work this way. The paper itself says no implementation has been demonstrated and its core claim is untested.</li>
+<li>Which leaves count as "known" is random, chosen for illustration. Real knowledge is not a neat binary tree.</li>
+<li>Real hallucinations also come from other sources (data noise, language priors, decoding) that the paper sets aside.</li>
+<li>Reading a truncated answer as "the first leaf under that branch" is this demo's simplification, so which answers count as hallucinations is a toy choice.</li></ul></div>
+
+<p>Read the paper: <a href="https://papers.qnfo.org/papers/monna-map-projection-of-ultrametric-thought-as-a-geometric-explanation-for-hallu">Monna-Map Projection of Ultrametric Thought as a Geometric Explanation for Hallucination in LLMs</a>. No tracking, no external requests. Source: <a href="https://github.com/QNFO/paper-demo-hallucination-monna-map">GitHub</a>.</p>
+</main>
+<script src="js/math.js"></script>
+<script>
+(function(){
+var D=5,N=32,known=[],seed=7,$=function(i){return document.getElementById(i)};
+function rnd(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296}
+function shuffle(){known=[];for(var i=0;i<N;i++)if(rnd()<0.45)known.push(i);if(known.indexOf(22)<0)known.push(22)}
+function f(x,n){return x.toFixed(n)}
+var NS='http://www.w3.org/2000/svg';
+function el(n,a,p,t){var e=document.createElementNS(NS,n);for(var k in a)e.setAttribute(k,a[k]);if(t!=null)e.textContent=t;p.appendChild(e);return e}
+function pick(l){$('q').value=l;upd()}
+function draw(){
+ var q=+$('q').value,k=+$('k').value,svg=$('tree');svg.textContent='';
+ var o=Monna.outcome(q,D,k,known),W=640,y0=24,dy=48,lw=W/N;
+ function x(l,d){var span=N/Math.pow(2,d);return (l*span+span/2)*lw}
+ for(var d=0;d<D;d++){for(var i=0;i<Math.pow(2,d);i++){for(var c=0;c<2;c++){
+   var j=i*2+c;el('line',{x1:x(i,d),y1:y0+d*dy,x2:x(j,d+1),y2:y0+(d+1)*dy,stroke:'currentColor','stroke-width':d<k?2:1,'stroke-opacity':d<k?0.9:0.35,'stroke-dasharray':d<k?'0':'3 3'},svg)}}}
+ var cy=y0+k*dy+(k<D?0:dy/2);
+ el('line',{x1:0,x2:W,y1:cy,y2:cy,stroke:'var(--bad)','stroke-width':2,'stroke-dasharray':'6 4'},svg);
+ el('text',{x:4,y:cy-4,'font-size':13},svg,k<D?'detail below this line is lost':'nothing is lost');
+ for(var l=0;l<N;l++){(function(l){
+  var g=el('g',{'class':'leaf',tabindex:0,role:'button','aria-label':'Fact '+l+(known.indexOf(l)>=0?', known':', unknown')},svg);
+  var kn=known.indexOf(l)>=0,grp=Monna.truncate(l,D,k)===o.out;
+  el('rect',{x:l*lw+1,y:y0+D*dy+2,width:lw-2,height:22,rx:3,fill:kn?'var(--ok)':'none',stroke:grp?'var(--warn)':'currentColor','stroke-width':grp?3:1},g);
+  el('rect',{x:l*lw-4,y:y0+D*dy,width:lw+8,height:70,fill:'transparent'},g);
+  if(l===q)el('text',{x:l*lw+lw/2,y:y0+D*dy+44,'text-anchor':'middle','font-size':16},g,'●');
+  if(l===o.out)el('text',{x:l*lw+lw/2,y:y0+D*dy+64,'text-anchor':'middle','font-size':16},g,'★');
+  g.addEventListener('click',function(){pick(l)});
+  g.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();pick(l)}});
+ })(l)}
+ el('text',{x:W/2,y:14,'text-anchor':'middle','font-size':13},svg,'root: all knowledge');
+ el('text',{x:W/2,y:y0+D*dy+100,'text-anchor':'middle','font-size':13},svg,'Orange outline = facts that look identical after truncation');
+}
+function upd(){
+ var q=+$('q').value,k=+$('k').value,o=Monna.outcome(q,D,k,known),v=$('verdict');
+ $('qn').textContent=q;$('kn').textContent=k;draw();
+ if(o.kind==='exact'){v.className='v-exact';v.textContent='Supported answer: all 5 digits survive, so the answer is the fact asked about, and the AI knows it.'}
+ else if(o.kind==='exact-unknown'){v.className='v-hall';v.textContent='Nothing lost, but the AI has no knowledge of this fact, so any answer is a gap (not the geometric effect the paper studies).'}
+ else if(o.kind==='wrong-but-supported'){v.className='v-wrong';v.textContent='Blurred: detail was lost and the answer is fact '+o.out+' instead of '+q+'. It sits on a branch with knowledge, so it looks plausible but may be wrong.'}
+ else{v.className='v-hall';v.textContent='Hallucination in this toy: detail was lost and the answer, fact '+o.out+', lands on a branch with no supporting knowledge.'}
+ var dg=Monna.digits(q,D);
+ $('dg').textContent=dg.map(function(d,i){return i<k?d:'·'}).join(' ')+'   (full: '+dg.join(' ')+')';
+ $('ph').textContent=f(Monna.phi(q,D),4)+' / '+f(Monna.phi(o.out,D),4);
+ $('rh').textContent=f(Monna.rho(k,D),2)+', loss '+f(Monna.loss(k,D),2);
+}
+$('n1').textContent=f(Monna.survive(5,2)*100,4)+'%  (paper: 0.9375%, about 0.94%)';
+$('n2').textContent=Monna.distinguishable(20,10).toExponential(3)+'  (paper: 9.77e-4); 10 bits lost';
+$('n3').textContent=f(Monna.floor(0.7,10,20)*100,2)+'%  (paper: 1.92%)';
+$('n4').textContent=f((1-Monna.loss(4,5)/Monna.loss(2,5))*100,1)+'% less loss  (paper: about 66.7%)';
+$('q').addEventListener('input',upd);$('k').addEventListener('input',upd);
+$('shuf').addEventListener('click',function(){shuffle();upd()});
+$('tryk').addEventListener('click',function(){var k=5;$('k').value=5;upd();var t=setInterval(function(){k--;if(k<1){clearInterval(t);return}$('k').value=k;upd()},900)});
+shuffle();upd();
+})();
+</script></body></html>
